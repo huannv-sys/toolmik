@@ -27,9 +27,9 @@ class Collector(BaseCollector):
         # Create InfluxDB client
         influx_config = self.config.get('influxdb', {})
         self.influx = InfluxClient(
-            host=influx_config.get('host', 'influxdb'),
+            host=influx_config.get('host', 'localhost'),
             port=influx_config.get('port', 8086),
-            token=influx_config.get('token', 'ChangeThisPassword'),
+            token=influx_config.get('token', 'nmlyZh-d8XfFkR-3oknXFJx_oDhtu9RCsn_qaK6LYLkFuwgX5xzKmTo-h4K3dtRcKJPxdr1YI8vyf00B0tH2tA=='),
             org=influx_config.get('org', 'my-org'),
             bucket=influx_config.get('bucket', 'my-bucket')
         )
@@ -81,13 +81,25 @@ class Collector(BaseCollector):
         
         for target in self.target_hosts:
             try:
-                # Run ping command with 5 packets
-                cmd = ['ping', '-c', '5', '-q', target]
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
+                # Use specific inetutils-ping path we found with `which ping`
+                cmd_options = [
+                    ['/nix/store/p83llzv0lwnnblzc7h12dqdr7fmrmlcx-inetutils-2.5/bin/ping', '-c', '5', '-q', target],
+                    ['ping', '-c', '5', '-q', target]
+                ]
                 
-                # Parse ping output
-                output = stdout.decode('utf-8')
+                for cmd in cmd_options:
+                    try:
+                        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        stdout, stderr = process.communicate()
+                        if process.returncode == 0 or process.returncode == 1:
+                            # Parse ping output
+                            output = stdout.decode('utf-8')
+                            break
+                    except:
+                        continue
+                else:
+                    # All ping commands failed
+                    raise Exception("No working ping command found")
                 
                 # Check if ping was successful
                 if process.returncode == 0:

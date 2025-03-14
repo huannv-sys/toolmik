@@ -24,6 +24,8 @@ sleep 5
 # Initialize InfluxDB if needed (suppress errors)
 echo "Initializing InfluxDB (if needed)..."
 influx setup --username admin --password ChangeThisPassword --org my-org --bucket my-bucket --retention 0 --force 2>/dev/null || true
+# Update the token for consistent authentication
+influx auth create --user admin --org my-org --all-access || true
 echo "InfluxDB initialization complete."
 
 # Create a simple web dashboard in HTML
@@ -153,7 +155,7 @@ def start_web_server(host='0.0.0.0', port=5000, debug=False):
         influx_client = InfluxClient(
             host=influx_config.get('host', 'localhost'),
             port=influx_config.get('port', 8086),
-            token=influx_config.get('token', 'ChangeThisPassword'),
+            token=influx_config.get('token', 'nmlyZh-d8XfFkR-3oknXFJx_oDhtu9RCsn_qaK6LYLkFuwgX5xzKmTo-h4K3dtRcKJPxdr1YI8vyf00B0tH2tA=='),
             org=influx_config.get('org', 'my-org'),
             bucket=influx_config.get('bucket', 'my-bucket')
         )
