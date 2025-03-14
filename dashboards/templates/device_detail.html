@@ -1,0 +1,1283 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ device.name }} - Network Monitoring System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>
+            <i class="bi bi-hdd-network"></i> {{ device.name }}
+            {% if device.status == 'online' %}
+            <span class="badge bg-success">Online</span>
+            {% elif device.status == 'warning' %}
+            <span class="badge bg-warning text-dark">Warning</span>
+            {% elif device.status == 'critical' %}
+            <span class="badge bg-danger">Critical</span>
+            {% else %}
+            <span class="badge bg-secondary">Offline</span>
+            {% endif %}
+        </h1>
+        <p class="lead">{{ device.address }} • {{ device.type }}</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-primary" id="refreshDevice">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editDeviceModal">
+                <i class="bi bi-pencil"></i> Edit
+            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="bi bi-gear"></i> Actions
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" id="pingDevice"><i class="bi bi-broadcast"></i> Ping</a></li>
+                    <li><a class="dropdown-item" href="#" id="scanDevice"><i class="bi bi-search"></i> Scan Ports</a></li>
+                    <li><a class="dropdown-item" href="#" id="wakeDevice"><i class="bi bi-power"></i> Wake on LAN</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" id="exportDevice"><i class="bi bi-download"></i> Export Data</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="deviceTabs">
+    <li class="nav-item">
+        <a class="nav-link active" id="overview-tab" data-bs-toggle="tab" href="#overview">Overview</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="interfaces-tab" data-bs-toggle="tab" href="#interfaces">Interfaces</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="wireless-tab" data-bs-toggle="tab" href="#wireless">Wireless</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="qos-tab" data-bs-toggle="tab" href="#qos">QoS</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="alerts-tab" data-bs-toggle="tab" href="#alerts">Alerts</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="logs-tab" data-bs-toggle="tab" href="#logs">Logs</a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Overview Tab -->
+    <div class="tab-pane fade show active" id="overview">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">System Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>Status</th>
+                                    <td>
+                                        {% if device.status == 'online' %}
+                                        <span class="text-success"><i class="bi bi-check-circle"></i> Online</span>
+                                        {% elif device.status == 'warning' %}
+                                        <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Warning</span>
+                                        {% elif device.status == 'critical' %}
+                                        <span class="text-danger"><i class="bi bi-x-circle"></i> Critical</span>
+                                        {% else %}
+                                        <span class="text-secondary"><i class="bi bi-dash-circle"></i> Offline</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <td>{{ device.address }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Device Type</th>
+                                    <td>{{ device.type }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Model</th>
+                                    <td>{{ device.model }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Serial Number</th>
+                                    <td>{{ device.serial }}</td>
+                                </tr>
+                                <tr>
+                                    <th>MAC Address</th>
+                                    <td>{{ device.mac }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Firmware Version</th>
+                                    <td>{{ device.firmware }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Seen</th>
+                                    <td>{{ device.last_seen }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Uptime</th>
+                                    <td>{{ device.uptime }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">CPU Usage</h5>
+                            </div>
+                            <div class="card-body d-flex flex-column align-items-center">
+                                <div class="gauge-chart" id="cpuGauge"></div>
+                                <div class="text-center mt-2">
+                                    <h4>{{ device.cpu }}%</h4>
+                                    <p class="text-muted">Current CPU Usage</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">Memory Usage</h5>
+                            </div>
+                            <div class="card-body d-flex flex-column align-items-center">
+                                <div class="gauge-chart" id="memoryGauge"></div>
+                                <div class="text-center mt-2">
+                                    <h4>{{ device.memory }}%</h4>
+                                    <p class="text-muted">Current Memory Usage</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Performance History</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="nav nav-pills mb-3" id="performanceTabs">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" id="cpu-tab" data-bs-toggle="pill" href="#cpu-history">CPU</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="memory-tab" data-bs-toggle="pill" href="#memory-history">Memory</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="disk-tab" data-bs-toggle="pill" href="#disk-history">Disk</a>
+                                    </li>
+                                </ul>
+                                <div class="tab-content">
+                                    <div class="tab-pane fade show active" id="cpu-history">
+                                        <canvas id="cpuChart" height="200"></canvas>
+                                    </div>
+                                    <div class="tab-pane fade" id="memory-history">
+                                        <canvas id="memoryChart" height="200"></canvas>
+                                    </div>
+                                    <div class="tab-pane fade" id="disk-history">
+                                        <canvas id="diskChart" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Network Traffic</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trafficChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Interfaces Tab -->
+    <div class="tab-pane fade" id="interfaces">
+        <div class="card">
+            <div class="card-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">Network Interfaces</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="interfaceSearch" placeholder="Search interfaces...">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="interfacesTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>MAC Address</th>
+                            <th>Status</th>
+                            <th>Rx Rate</th>
+                            <th>Tx Rate</th>
+                            <th>Errors</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for interface in interfaces %}
+                        <tr>
+                            <td>{{ interface.name }}</td>
+                            <td>{{ interface.type }}</td>
+                            <td>{{ interface.mac_address }}</td>
+                            <td>
+                                {% if interface.status %}
+                                <span class="badge bg-success">Up</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Down</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ interface.rx_rate }}</td>
+                            <td>{{ interface.tx_rate }}</td>
+                            <td>
+                                {% if interface.errors > 0 %}
+                                <span class="text-danger">{{ interface.errors }}</span>
+                                {% else %}
+                                0
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary view-interface" data-interface-id="{{ interface.id }}">
+                                        <i class="bi bi-graph-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary toggle-interface" data-interface-id="{{ interface.id }}" data-interface-status="{{ interface.status }}">
+                                        {% if interface.status %}
+                                        <i class="bi bi-toggle-on"></i>
+                                        {% else %}
+                                        <i class="bi bi-toggle-off"></i>
+                                        {% endif %}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Interface Traffic</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="interfaceSelect" class="form-label">Select Interface:</label>
+                                <select class="form-select" id="interfaceSelect">
+                                    {% for interface in interfaces %}
+                                    <option value="{{ interface.id }}">{{ interface.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="timeRangeSelect" class="form-label">Time Range:</label>
+                                <select class="form-select" id="timeRangeSelect">
+                                    <option value="1h">Last Hour</option>
+                                    <option value="3h">Last 3 Hours</option>
+                                    <option value="12h">Last 12 Hours</option>
+                                    <option value="24h" selected>Last 24 Hours</option>
+                                    <option value="7d">Last 7 Days</option>
+                                    <option value="30d">Last 30 Days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <canvas id="interfaceTrafficChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Wireless Tab -->
+    <div class="tab-pane fade" id="wireless">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Wireless Interfaces</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>SSID</th>
+                                    <th>Mode</th>
+                                    <th>Channel</th>
+                                    <th>Clients</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for wlan in wireless.interfaces %}
+                                <tr>
+                                    <td>{{ wlan.name }}</td>
+                                    <td>{{ wlan.ssid }}</td>
+                                    <td>{{ wlan.mode }}</td>
+                                    <td>{{ wlan.channel }}</td>
+                                    <td>{{ wlan.clients }}</td>
+                                    <td>
+                                        {% if wlan.status %}
+                                        <span class="badge bg-success">Up</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Down</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Connection Stats</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="wirelessStatsChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">Connected Clients</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="clientSearch" placeholder="Search clients...">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="clientsTable">
+                    <thead>
+                        <tr>
+                            <th>MAC Address</th>
+                            <th>Hostname</th>
+                            <th>IP Address</th>
+                            <th>Interface</th>
+                            <th>Signal Strength</th>
+                            <th>Rx/Tx Rate</th>
+                            <th>Connected Since</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in wireless.clients %}
+                        <tr>
+                            <td>{{ client.mac }}</td>
+                            <td>{{ client.hostname }}</td>
+                            <td>{{ client.ip }}</td>
+                            <td>{{ client.interface }}</td>
+                            <td>
+                                <div class="signal-strength">
+                                    <div class="progress">
+                                        <div class="progress-bar 
+                                            {% if client.signal_strength > -65 %}bg-success
+                                            {% elif client.signal_strength > -75 %}bg-warning
+                                            {% else %}bg-danger{% endif %}" 
+                                            role="progressbar" 
+                                            style="width: {{ (client.signal_strength + 100) }}%">
+                                        </div>
+                                    </div>
+                                    {{ client.signal_strength }} dBm
+                                </div>
+                            </td>
+                            <td>{{ client.rx_rate }}/{{ client.tx_rate }} Mbps</td>
+                            <td>{{ client.connected_since }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary view-client" data-client-mac="{{ client.mac }}">
+                                        <i class="bi bi-graph-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger disconnect-client" data-client-mac="{{ client.mac }}">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- QoS Tab -->
+    <div class="tab-pane fade" id="qos">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Bandwidth Usage</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="bandwidthChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">QoS Queues</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="queueSearch" placeholder="Search queues...">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="queuesTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Target</th>
+                            <th>Priority</th>
+                            <th>Download Limit</th>
+                            <th>Upload Limit</th>
+                            <th>Current Download</th>
+                            <th>Current Upload</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for queue in qos.queues %}
+                        <tr>
+                            <td>{{ queue.name }}</td>
+                            <td>{{ queue.target }}</td>
+                            <td>{{ queue.priority }}</td>
+                            <td>{{ queue.download_limit }}</td>
+                            <td>{{ queue.upload_limit }}</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar bg-primary" role="progressbar" 
+                                         style="width: {{ (queue.current_download / queue.download_limit) * 100 if queue.download_limit > 0 else 0 }}%">
+                                        {{ queue.current_download }}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ (queue.current_upload / queue.upload_limit) * 100 if queue.upload_limit > 0 else 0 }}%">
+                                        {{ queue.current_upload }}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary view-queue" data-queue-id="{{ queue.id }}">
+                                        <i class="bi bi-graph-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary edit-queue" data-queue-id="{{ queue.id }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alerts Tab -->
+    <div class="tab-pane fade" id="alerts">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Device Alerts</h5>
+            </div>
+            <div class="card-body">
+                {% if device_alerts %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Severity</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                                <th>Value</th>
+                                <th>Threshold</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in device_alerts %}
+                            <tr class="{% if alert.severity == 'critical' %}table-danger{% elif alert.severity == 'warning' %}table-warning{% elif alert.severity == 'info' %}table-info{% endif %}">
+                                <td>{{ alert.time }}</td>
+                                <td>
+                                    {% if alert.severity == 'critical' %}
+                                    <span class="badge bg-danger">Critical</span>
+                                    {% elif alert.severity == 'warning' %}
+                                    <span class="badge bg-warning text-dark">Warning</span>
+                                    {% elif alert.severity == 'info' %}
+                                    <span class="badge bg-info text-dark">Info</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ alert.type }}</td>
+                                <td>{{ alert.message }}</td>
+                                <td>{{ alert.value }}</td>
+                                <td>{{ alert.threshold }}</td>
+                                <td>
+                                    {% if alert.active %}
+                                    <span class="badge bg-danger">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Resolved</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> No alerts for this device.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Logs Tab -->
+    <div class="tab-pane fade" id="logs">
+        <div class="card">
+            <div class="card-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">Device Logs</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="logSearch" placeholder="Search logs...">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="logTypeSelect" class="form-label">Log Type:</label>
+                        <select class="form-select" id="logTypeSelect">
+                            <option value="all" selected>All Logs</option>
+                            <option value="system">System</option>
+                            <option value="firewall">Firewall</option>
+                            <option value="dhcp">DHCP</option>
+                            <option value="wireless">Wireless</option>
+                            <option value="vpn">VPN</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="logTimeSelect" class="form-label">Time Range:</label>
+                        <select class="form-select" id="logTimeSelect">
+                            <option value="1h">Last Hour</option>
+                            <option value="3h">Last 3 Hours</option>
+                            <option value="12h">Last 12 Hours</option>
+                            <option value="24h" selected>Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                        </select>
+                    </div>
+                </div>
+                
+                {% if logs %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="logsTable">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Level</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr class="{% if log.level == 'error' %}table-danger{% elif log.level == 'warning' %}table-warning{% elif log.level == 'info' %}table-info{% endif %}">
+                                <td>{{ log.time }}</td>
+                                <td>
+                                    {% if log.level == 'error' %}
+                                    <span class="badge bg-danger">Error</span>
+                                    {% elif log.level == 'warning' %}
+                                    <span class="badge bg-warning text-dark">Warning</span>
+                                    {% elif log.level == 'info' %}
+                                    <span class="badge bg-info text-dark">Info</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Debug</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.type }}</td>
+                                <td>{{ log.message }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No logs available for this device.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div class="modal fade" id="editDeviceModal" tabindex="-1" aria-labelledby="editDeviceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDeviceModalLabel">Edit Device: {{ device.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editDeviceForm" action="{{ url_for('edit_device', device_id=device.id) }}" method="post">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="deviceName" class="form-label">Device Name</label>
+                            <input type="text" class="form-control" id="deviceName" name="name" value="{{ device.name }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="deviceAddress" class="form-label">IP Address</label>
+                            <input type="text" class="form-control" id="deviceAddress" name="address" value="{{ device.address }}" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="deviceType" class="form-label">Device Type</label>
+                            <select class="form-select" id="deviceType" name="type" required>
+                                <option value="mikrotik" {% if device.type == 'mikrotik' %}selected{% endif %}>MikroTik Router</option>
+                                <option value="router" {% if device.type == 'router' %}selected{% endif %}>Generic Router</option>
+                                <option value="switch" {% if device.type == 'switch' %}selected{% endif %}>Network Switch</option>
+                                <option value="wireless" {% if device.type == 'wireless' %}selected{% endif %}>Wireless Access Point</option>
+                                <option value="server" {% if device.type == 'server' %}selected{% endif %}>Server</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="authMethod" class="form-label">Authentication Method</label>
+                            <select class="form-select" id="authMethod" name="auth_method" required>
+                                <option value="api" {% if device.auth_method == 'api' %}selected{% endif %}>API</option>
+                                <option value="snmp" {% if device.auth_method == 'snmp' %}selected{% endif %}>SNMP</option>
+                                <option value="ssh" {% if device.auth_method == 'ssh' %}selected{% endif %}>SSH</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Authentication Fields (similar to add device) -->
+                    
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="deviceNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="deviceNotes" name="notes" rows="3">{{ device.notes }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="deviceEnabled" name="enabled" {% if device.enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="deviceEnabled">
+                            Enable monitoring for this device
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_js %}
+<script src="https://cdn.jsdelivr.net/npm/gauge-chart@0.5.2/dist/bundle.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // CPU Gauge
+        const cpuGauge = document.getElementById('cpuGauge');
+        if (cpuGauge) {
+            GaugeChart.gaugeChart(cpuGauge, {
+                hasNeedle: true,
+                needleColor: '#1e88e5',
+                arcColors: ['#00b050', '#ffc000', '#ff0000'],
+                arcDelimiters: [60, 80],
+                arcPadding: 10,
+                arcPaddingColor: '#f5f5f5',
+                needleStartValue: 0,
+                needleUpdateSpeed: 1000,
+                percent: {{ device.cpu or 0 }}
+            });
+        }
+        
+        // Memory Gauge
+        const memoryGauge = document.getElementById('memoryGauge');
+        if (memoryGauge) {
+            GaugeChart.gaugeChart(memoryGauge, {
+                hasNeedle: true,
+                needleColor: '#1e88e5',
+                arcColors: ['#00b050', '#ffc000', '#ff0000'],
+                arcDelimiters: [60, 80],
+                arcPadding: 10,
+                arcPaddingColor: '#f5f5f5',
+                needleStartValue: 0,
+                needleUpdateSpeed: 1000,
+                percent: {{ device.memory or 0 }}
+            });
+        }
+        
+        // CPU Chart
+        const cpuChartCtx = document.getElementById('cpuChart');
+        if (cpuChartCtx) {
+            const cpuChart = new Chart(cpuChartCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ cpu_labels|safe }},
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: {{ cpu_data|safe }},
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Memory Chart
+        const memoryChartCtx = document.getElementById('memoryChart');
+        if (memoryChartCtx) {
+            const memoryChart = new Chart(memoryChartCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ memory_labels|safe }},
+                    datasets: [{
+                        label: 'Memory Usage (%)',
+                        data: {{ memory_data|safe }},
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Disk Chart
+        const diskChartCtx = document.getElementById('diskChart');
+        if (diskChartCtx) {
+            const diskChart = new Chart(diskChartCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ disk_labels|safe }},
+                    datasets: [{
+                        label: 'Disk Usage (%)',
+                        data: {{ disk_data|safe }},
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Traffic Chart
+        const trafficChartCtx = document.getElementById('trafficChart');
+        if (trafficChartCtx) {
+            const trafficChart = new Chart(trafficChartCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ traffic_labels|safe }},
+                    datasets: [
+                        {
+                            label: 'Download (Mbps)',
+                            data: {{ download_data|safe }},
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Upload (Mbps)',
+                            data: {{ upload_data|safe }},
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Network Traffic'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Megabits per second (Mbps)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Interface Traffic Chart
+        const interfaceTrafficChartCtx = document.getElementById('interfaceTrafficChart');
+        if (interfaceTrafficChartCtx) {
+            let interfaceData = {};
+            {% for interface in interfaces %}
+            interfaceData['{{ interface.id }}'] = {
+                labels: {{ interface.traffic_labels|safe }},
+                download: {{ interface.download_data|safe }},
+                upload: {{ interface.upload_data|safe }}
+            };
+            {% endfor %}
+            
+            let interfaceTrafficChart = new Chart(interfaceTrafficChartCtx, {
+                type: 'line',
+                data: {
+                    labels: interfaceData[document.getElementById('interfaceSelect').value].labels,
+                    datasets: [
+                        {
+                            label: 'Download (Mbps)',
+                            data: interfaceData[document.getElementById('interfaceSelect').value].download,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Upload (Mbps)',
+                            data: interfaceData[document.getElementById('interfaceSelect').value].upload,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Interface Traffic'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Megabits per second (Mbps)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Interface select change handler
+            document.getElementById('interfaceSelect').addEventListener('change', function() {
+                const interfaceId = this.value;
+                
+                interfaceTrafficChart.data.labels = interfaceData[interfaceId].labels;
+                interfaceTrafficChart.data.datasets[0].data = interfaceData[interfaceId].download;
+                interfaceTrafficChart.data.datasets[1].data = interfaceData[interfaceId].upload;
+                interfaceTrafficChart.update();
+            });
+            
+            // Time range select change handler
+            document.getElementById('timeRangeSelect').addEventListener('change', function() {
+                const timeRange = this.value;
+                const interfaceId = document.getElementById('interfaceSelect').value;
+                
+                // In a real application, this would fetch new data based on the time range
+                // For this demo, we'll just update the chart title
+                interfaceTrafficChart.options.plugins.title.text = `Interface Traffic (${timeRange})`;
+                interfaceTrafficChart.update();
+            });
+        }
+        
+        // Wireless Stats Chart
+        const wirelessStatsChartCtx = document.getElementById('wirelessStatsChart');
+        if (wirelessStatsChartCtx) {
+            const wirelessStatsChart = new Chart(wirelessStatsChartCtx, {
+                type: 'bar',
+                data: {
+                    labels: {{ wireless_labels|safe }},
+                    datasets: [
+                        {
+                            label: 'Signal Strength (dBm)',
+                            data: {{ wireless_signal_data|safe }},
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                        },
+                        {
+                            label: 'Tx Rate (Mbps)',
+                            data: {{ wireless_tx_data|safe }},
+                            backgroundColor: 'rgba(153, 102, 255, 0.8)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Wireless Performance'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Bandwidth Chart
+        const bandwidthChartCtx = document.getElementById('bandwidthChart');
+        if (bandwidthChartCtx) {
+            const bandwidthChart = new Chart(bandwidthChartCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ bandwidth_labels|safe }},
+                    datasets: [
+                        {
+                            label: 'Download Usage',
+                            data: {{ bandwidth_download_data|safe }},
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Upload Usage',
+                            data: {{ bandwidth_upload_data|safe }},
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Download Limit',
+                            data: {{ bandwidth_download_limit|safe }},
+                            borderColor: 'rgba(54, 162, 235, 0.5)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Upload Limit',
+                            data: {{ bandwidth_upload_limit|safe }},
+                            borderColor: 'rgba(255, 99, 132, 0.5)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Bandwidth Usage vs. Limits'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Megabits per second (Mbps)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Search functionality
+        const interfaceSearch = document.getElementById('interfaceSearch');
+        if (interfaceSearch) {
+            interfaceSearch.addEventListener('keyup', function() {
+                const searchValue = this.value.toLowerCase();
+                const table = document.getElementById('interfacesTable');
+                const rows = table.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const name = row.cells[0].textContent.toLowerCase();
+                    const type = row.cells[1].textContent.toLowerCase();
+                    const mac = row.cells[2].textContent.toLowerCase();
+                    
+                    if (name.includes(searchValue) || type.includes(searchValue) || mac.includes(searchValue)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        const clientSearch = document.getElementById('clientSearch');
+        if (clientSearch) {
+            clientSearch.addEventListener('keyup', function() {
+                const searchValue = this.value.toLowerCase();
+                const table = document.getElementById('clientsTable');
+                const rows = table.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const mac = row.cells[0].textContent.toLowerCase();
+                    const hostname = row.cells[1].textContent.toLowerCase();
+                    const ip = row.cells[2].textContent.toLowerCase();
+                    
+                    if (mac.includes(searchValue) || hostname.includes(searchValue) || ip.includes(searchValue)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        const queueSearch = document.getElementById('queueSearch');
+        if (queueSearch) {
+            queueSearch.addEventListener('keyup', function() {
+                const searchValue = this.value.toLowerCase();
+                const table = document.getElementById('queuesTable');
+                const rows = table.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const name = row.cells[0].textContent.toLowerCase();
+                    const target = row.cells[1].textContent.toLowerCase();
+                    
+                    if (name.includes(searchValue) || target.includes(searchValue)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        const logSearch = document.getElementById('logSearch');
+        if (logSearch) {
+            logSearch.addEventListener('keyup', function() {
+                const searchValue = this.value.toLowerCase();
+                const table = document.getElementById('logsTable');
+                const rows = table.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const type = row.cells[2].textContent.toLowerCase();
+                    const message = row.cells[3].textContent.toLowerCase();
+                    
+                    if (type.includes(searchValue) || message.includes(searchValue)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        // Toggle interface status
+        const toggleButtons = document.querySelectorAll('.toggle-interface');
+        toggleButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const interfaceId = this.getAttribute('data-interface-id');
+                const currentStatus = this.getAttribute('data-interface-status') === 'true';
+                
+                if (confirm(`Do you want to ${currentStatus ? 'disable' : 'enable'} this interface?`)) {
+                    fetch(`/api/devices/{{ device.id }}/interfaces/${interfaceId}/toggle`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ enabled: !currentStatus })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Failed to toggle interface: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while toggling interface');
+                    });
+                }
+            });
+        });
+        
+        // Disconnect client
+        const disconnectButtons = document.querySelectorAll('.disconnect-client');
+        disconnectButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const clientMac = this.getAttribute('data-client-mac');
+                
+                if (confirm(`Do you want to disconnect client ${clientMac}?`)) {
+                    fetch(`/api/devices/{{ device.id }}/clients/${clientMac}/disconnect`, {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Failed to disconnect client: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while disconnecting client');
+                    });
+                }
+            });
+        });
+        
+        // Refresh device
+        const refreshButton = document.getElementById('refreshDevice');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+                location.reload();
+            });
+        }
+        
+        // Logs filter functionality
+        const logTypeSelect = document.getElementById('logTypeSelect');
+        const logTimeSelect = document.getElementById('logTimeSelect');
+        
+        if (logTypeSelect && logTimeSelect) {
+            const updateLogs = function() {
+                const type = logTypeSelect.value;
+                const time = logTimeSelect.value;
+                
+                // In a real application, this would fetch filtered logs from the server
+                // For this demo, we'll just filter the existing table rows
+                const table = document.getElementById('logsTable');
+                if (!table) return;
+                
+                const rows = table.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const logType = row.cells[2].textContent.toLowerCase();
+                    
+                    if (type === 'all' || logType === type) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            };
+            
+            logTypeSelect.addEventListener('change', updateLogs);
+            logTimeSelect.addEventListener('change', updateLogs);
+        }
+    });
+</script>
+{% endblock %}
