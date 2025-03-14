@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  influxdb:
+    image: influxdb:2.6
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb2
+      - ./config/influxdb:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=ChangeThisPassword
+      - DOCKER_INFLUXDB_INIT_ORG=my-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=my-bucket
+    restart: unless-stopped
+    networks:
+      - monitoring-net
+
+  grafana:
+    image: grafana/grafana-enterprise:9.5.2
+    container_name: grafana
+    ports:
+      - "5000:3000"  # Map to port 5000 as required
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=ChangeThisPassword
+      - GF_SERVER_ROOT_URL=http://0.0.0.0:3000
+    restart: unless-stopped
+    networks:
+      - monitoring-net
+    depends_on:
+      - influxdb
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mikrotik-monitor
+    ports:
+      - "8000:8000"  # API port
+    volumes:
+      - ./app:/app
+      - ./config.yaml:/app/config.yaml
+    restart: unless-stopped
+    networks:
+      - monitoring-net
+    depends_on:
+      - influxdb
+      - grafana
+
+networks:
+  monitoring-net:
+    driver: bridge

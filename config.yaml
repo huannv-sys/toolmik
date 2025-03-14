@@ -1,0 +1,51 @@
+modules:
+  - mikrotik
+  - system
+  - wireless
+  - wan
+  - qos
+
+influxdb:
+  host: localhost
+  port: 8086
+  org: my-org
+  bucket: my-bucket
+  token: ChangeThisPassword
+
+alerting:
+  email: admin@example.com
+  threshold:
+    cpu: 80
+    memory: 85
+    disk: 90
+
+api:
+  port: 8000
+  host: 0.0.0.0
+  auth:
+    enabled: true
+    jwt_secret: e8f14d5e3b71d3c7a33dc5f4e1dc2b9a8cd4a8b5
+
+rbac:
+  roles:
+    - admin
+    - operator
+    - viewer
+
+# Sample device configurations (replace with your actual devices)
+devices:
+  mikrotik:
+    - id: mikrotik-router-01
+      name: Main Router
+      address: 192.168.1.1
+      auth:
+        method: api # can be 'api' or 'snmp'
+        username: admin
+        password: password
+      collect:
+        system: true
+        interfaces: true
+        wireless: true
+        qos: true
+      alert:
+        enabled: true
