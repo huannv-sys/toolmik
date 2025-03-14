@@ -1,0 +1,142 @@
+#!/bin/bash
+
+# Auto Install Script for Network Monitoring System
+# Version 1.0 - For Ubuntu 22.04 LTS
+
+# Cấu hình ban đầu
+ADMIN_EMAIL="admin@example.com"
+GRAFANA_VERSION="9.5.2"
+INFLUXDB_VERSION="2.6"
+MQTT_BROKER="tcp://broker.example.com:1883"
+
+# Cài đặt các dependencies
+sudo apt-get update
+sudo apt-get install -y \
+    git \
+    docker.io \
+    docker-compose \
+    python3-pip \
+    snmp \
+    libsnmp-dev \
+    python3-pyqt5 \
+    jq
+
+# Khởi tạo thư mục làm việc
+mkdir -p ~/network-monitoring/{config,data,scripts,dashboards}
+cd ~/network-monitoring
+
+# Tạo Docker network
+docker network create monitoring-net
+
+# Triển khai InfluxDB
+docker run -d --name=influxdb \
+    --net=monitoring-net \
+    -p 8086:8086 \
+    -v ~/network-monitoring/data/influxdb:/var/lib/influxdb2 \
+    -v ~/network-monitoring/config/influxdb:/etc/influxdb2 \
+    -e DOCKER_INFLUXDB_INIT_MODE=setup \
+    -e DOCKER_INFLUXDB_INIT_USERNAME=admin \
+    -e DOCKER_INFLUXDB_INIT_PASSWORD=ChangeThisPassword \
+    -e DOCKER_INFLUXDB_INIT_ORG=my-org \
+    -e DOCKER_INFLUXDB_INIT_BUCKET=my-bucket \
+    influxdb:${INFLUXDB_VERSION}
+
+# Triển khai Grafana
+docker run -d --name=grafana \
+    --net=monitoring-net \
+    -p 3000:3000 \
+    -v ~/network-monitoring/data/grafana:/var/lib/grafana \
+    -v ~/network-monitoring/dashboards:/etc/grafana/provisioning/dashboards \
+    grafana/grafana-enterprise:${GRAFANA_VERSION}
+
+# Clone repository ứng dụng chính
+git clone https://github.com/your-repo/network-monitoring-app.git
+cd network-monitoring-app
+
+# Cài đặt Python dependencies
+pip3 install -r requirements.txt
+
+# Tạo file cấu hình
+cat <<EOL > config.yaml
+modules:
+  - mikrotik
+  - system
+  - wireless
+  - wan
+  - qos
+
+influxdb:
+  host: influxdb
+  port: 8086
+  org: my-org
+  bucket: my-bucket
+  token: ChangeThisPassword
+
+alerting:
+  email: ${ADMIN_EMAIL}
+  threshold:
+    cpu: 80
+    memory: 85
+    disk: 90
+
+api:
+  port: 8000
+  auth:
+    enabled: true
+    jwt_secret: $(openssl rand -hex 24)
+
+rbac:
+  roles:
+    - admin
+    - operator
+    - viewer
+EOL
+
+# Khởi chạy dịch vụ chính
+docker-compose up -d
+
+# Cấu hình plugin Grafana
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "MikroTik-Datasource",
+    "type": "mikrotik-datasource",
+    "url": "http://app:8000",
+    "access": "proxy"
+  }' \
+  http://admin:admin@localhost:3000/api/datasources
+
+# Import các dashboard mẫu
+git clone https://github.com/your-repo/monitoring-dashboards.git
+cp -r monitoring-dashboards/* ~/network-monitoring/dashboards/
+
+# Cấu hình systemd service
+sudo tee /etc/systemd/system/netmon.service > /dev/null <<EOL
+[Unit]
+Description=Network Monitoring Service
+After=docker.service
+
+[Service]
+WorkingDirectory=$(pwd)
+ExecStart=/usr/bin/docker-compose up
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+sudo systemctl daemon-reload
+sudo systemctl enable netmon.service
+
+# Cấu hình firewall
+sudo ufw allow 3000/tcp   # Grafana
+sudo ufw allow 8000/tcp   # API
+sudo ufw allow 8086/tcp   # InfluxDB
+
+# Hiển thị thông tin kết thúc
+echo "Cài đặt hoàn tất!"
+echo "Truy cập các dịch vụ:"
+echo "- Grafana: http://$(hostname -I | awk '{print $1}'):3000"
+echo "- API: http://$(hostname -I | awk '{print $1}'):8000"
+echo "- InfluxDB: http://$(hostname -I | awk '{print $1}'):8086"
+echo "Mật khẩu mặc định: admin/ChangeThisPassword"
