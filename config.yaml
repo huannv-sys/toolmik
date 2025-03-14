@@ -10,7 +10,7 @@ influxdb:
   port: 8086
   org: my-org
   bucket: my-bucket
-  token: ChangeThisPassword
+  token: nmlyZh-d8XfFkR-3oknXFJx_oDhtu9RCsn_qaK6LYLkFuwgX5xzKmTo-h4K3dtRcKJPxdr1YI8vyf00B0tH2tA==
 
 alerting:
   email: admin@example.com

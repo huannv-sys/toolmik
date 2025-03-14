@@ -2,45 +2,39 @@
 InfluxDB client for storing and retrieving metrics
 """
 import logging
-import datetime
+import time
+from typing import Dict, List, Optional, Any, Union
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# Configure logging
-logger = logging.getLogger("utils.influx")
+logger = logging.getLogger('utils.influx')
 
 class InfluxClient:
     """Client for interacting with InfluxDB"""
     
-    def __init__(self, host='influxdb', port=8086, token='ChangeThisPassword', org='my-org', bucket='my-bucket'):
+    def __init__(self, host='localhost', port=8086, token='ChangeThisPassword', org='my-org', bucket='my-bucket'):
         """Initialize the InfluxDB client"""
         self.host = host
         self.port = port
         self.token = token
         self.org = org
         self.bucket = bucket
-        self.url = f"http://{host}:{port}"
-        
-        # Create client
         self.client = None
         self.write_api = None
         self.query_api = None
-        
-        # Try to connect
         self._connect()
     
     def _connect(self):
         """Connect to InfluxDB"""
         try:
-            self.client = InfluxDBClient(url=self.url, token=self.token, org=self.org)
+            url = f"http://{self.host}:{self.port}"
+            self.client = InfluxDBClient(url=url, token=self.token, org=self.org)
             self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
             self.query_api = self.client.query_api()
-            logger.info(f"Connected to InfluxDB at {self.url}")
+            logger.info(f"Connected to InfluxDB at {url}")
         except Exception as e:
-            logger.error(f"Failed to connect to InfluxDB: {str(e)}")
-            self.client = None
-            self.write_api = None
-            self.query_api = None
+            logger.error(f"Error connecting to InfluxDB: {str(e)}")
+            raise
     
     def write_data(self, data):
         """
@@ -49,20 +43,10 @@ class InfluxClient:
         Args:
             data: List of data points to write
         """
-        if not self.write_api:
-            logger.error("Cannot write data: InfluxDB client not connected")
-            self._connect()
-            if not self.write_api:
-                return False
-        
         try:
             self.write_api.write(bucket=self.bucket, record=data)
-            return True
         except Exception as e:
             logger.error(f"Error writing to InfluxDB: {str(e)}")
-            # Try to reconnect
-            self._connect()
-            return False
     
     def query(self, query):
         """
@@ -74,19 +58,10 @@ class InfluxClient:
         Returns:
             Query result or None if failed
         """
-        if not self.query_api:
-            logger.error("Cannot query data: InfluxDB client not connected")
-            self._connect()
-            if not self.query_api:
-                return None
-        
         try:
-            result = self.query_api.query(query=query, org=self.org)
-            return result
+            return self.query_api.query(query=query, org=self.org)
         except Exception as e:
             logger.error(f"Error querying InfluxDB: {str(e)}")
-            # Try to reconnect
-            self._connect()
             return None
     
     def get_device_status(self):
@@ -96,14 +71,12 @@ class InfluxClient:
         Returns:
             List of devices with their status
         """
-        # Query system metrics for each device to determine status
+        # Query to get the latest status of all devices
         query = f'''
         from(bucket: "{self.bucket}")
             |> range(start: -5m)
-            |> filter(fn: (r) => r._measurement == "system_metrics")
-            |> filter(fn: (r) => r._field == "cpu_load" or r._field == "memory_usage")
+            |> filter(fn: (r) => r._measurement == "device_status")
             |> last()
-            |> group(columns: ["device_id", "device_name", "device_type"])
         '''
         
         try:
@@ -111,26 +84,16 @@ class InfluxClient:
             if not result:
                 return []
             
-            # Process result
-            devices = {}
+            devices = []
             for table in result:
                 for record in table.records:
-                    device_id = record.values.get('device_id')
-                    if device_id not in devices:
-                        devices[device_id] = {
-                            'id': device_id,
-                            'name': record.values.get('device_name'),
-                            'type': record.values.get('device_type'),
-                            'status': 'online',
-                            'last_seen': record.values.get('_time'),
-                            'metrics': {}
-                        }
-                    
-                    field = record.values.get('_field')
-                    value = record.values.get('_value')
-                    devices[device_id]['metrics'][field] = value
+                    devices.append({
+                        'device_id': record.values.get('device_id', 'unknown'),
+                        'status': record.values.get('_value', 'unknown'),
+                        'last_seen': record.values.get('_time', 'unknown')
+                    })
             
-            return list(devices.values())
+            return devices
         except Exception as e:
             logger.error(f"Error getting device status: {str(e)}")
             return []
@@ -142,14 +105,13 @@ class InfluxClient:
         Returns:
             List of devices
         """
-        # Query to get unique devices
+        # Query to get all unique device IDs
         query = f'''
         from(bucket: "{self.bucket}")
             |> range(start: -1h)
-            |> filter(fn: (r) => r._measurement == "system_metrics")
-            |> group(columns: ["device_id", "device_name", "device_type"])
-            |> limit(n: 1)
-            |> yield(name: "devices")
+            |> filter(fn: (r) => r._measurement == "device" or r._measurement == "interface" or r._measurement == "wireless")
+            |> group(columns: ["device_id"])
+            |> distinct(column: "device_id")
         '''
         
         try:
@@ -157,21 +119,20 @@ class InfluxClient:
             if not result:
                 return []
             
-            # Process result
-            devices = {}
+            devices = []
             for table in result:
                 for record in table.records:
-                    device_id = record.values.get('device_id')
-                    if device_id not in devices:
-                        devices[device_id] = {
+                    device_id = record.values.get('_value', '')
+                    if device_id and device_id not in [d.get('id') for d in devices]:
+                        devices.append({
                             'id': device_id,
-                            'name': record.values.get('device_name'),
-                            'type': record.values.get('device_type')
-                        }
+                            'name': device_id,  # In a real scenario, we'd have a mapping of IDs to names
+                            'type': 'unknown'   # In a real scenario, we'd have device types
+                        })
             
-            return list(devices.values())
+            return devices
         except Exception as e:
-            logger.error(f"Error getting device list: {str(e)}")
+            logger.error(f"Error getting devices: {str(e)}")
             return []
     
     def get_device_metrics(self, device_id, metric_type='all', start_time='-1h', end_time='now()'):
@@ -187,60 +148,58 @@ class InfluxClient:
         Returns:
             Dictionary with metrics
         """
-        # Build measurement filter based on metric type
-        measurement_filter = ''
-        if metric_type == 'all':
-            measurement_filter = 'r._measurement == "system_metrics" or r._measurement == "interface_metrics"'
-        elif metric_type == 'cpu':
-            measurement_filter = 'r._measurement == "system_metrics" and r._field == "cpu_load"'
-        elif metric_type == 'memory':
-            measurement_filter = 'r._measurement == "system_metrics" and r._field == "memory_usage"'
-        elif metric_type == 'interface':
-            measurement_filter = 'r._measurement == "interface_metrics"'
-        else:
-            measurement_filter = f'r._measurement == "{metric_type}"'
+        metrics = {}
         
-        # Query to get metrics
-        query = f'''
-        from(bucket: "{self.bucket}")
-            |> range(start: {start_time}, stop: {end_time})
-            |> filter(fn: (r) => {measurement_filter})
-            |> filter(fn: (r) => r.device_id == "{device_id}")
-            |> group(columns: ["_measurement", "_field"])
-            |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
-        '''
+        # Define queries based on metric type
+        if metric_type == 'all' or metric_type == 'cpu':
+            cpu_query = f'''
+            from(bucket: "{self.bucket}")
+                |> range(start: {start_time}, stop: {end_time})
+                |> filter(fn: (r) => r._measurement == "device" and r.device_id == "{device_id}" and r._field == "cpu_load")
+                |> aggregateWindow(every: 5m, fn: mean)
+            '''
+            
+            try:
+                result = self.query(cpu_query)
+                if result:
+                    cpu_data = []
+                    for table in result:
+                        for record in table.records:
+                            cpu_data.append({
+                                'time': record.values.get('_time'),
+                                'value': record.values.get('_value', 0)
+                            })
+                    
+                    metrics['cpu'] = cpu_data
+            except Exception as e:
+                logger.error(f"Error getting CPU metrics: {str(e)}")
         
-        try:
-            result = self.query(query)
-            if not result:
-                return {}
+        if metric_type == 'all' or metric_type == 'memory':
+            memory_query = f'''
+            from(bucket: "{self.bucket}")
+                |> range(start: {start_time}, stop: {end_time})
+                |> filter(fn: (r) => r._measurement == "device" and r.device_id == "{device_id}" and r._field == "memory_used")
+                |> aggregateWindow(every: 5m, fn: mean)
+            '''
             
-            # Process result
-            metrics = {
-                'device_id': device_id,
-                'data': {}
-            }
-            
-            for table in result:
-                measurement = table.records[0].values.get('_measurement')
-                field = table.records[0].values.get('_field')
-                
-                if measurement not in metrics['data']:
-                    metrics['data'][measurement] = {}
-                
-                if field not in metrics['data'][measurement]:
-                    metrics['data'][measurement][field] = []
-                
-                for record in table.records:
-                    metrics['data'][measurement][field].append({
-                        'time': record.values.get('_time').strftime('%Y-%m-%dT%H:%M:%SZ'),
-                        'value': record.values.get('_value')
-                    })
-            
-            return metrics
-        except Exception as e:
-            logger.error(f"Error getting device metrics: {str(e)}")
-            return {}
+            try:
+                result = self.query(memory_query)
+                if result:
+                    memory_data = []
+                    for table in result:
+                        for record in table.records:
+                            memory_data.append({
+                                'time': record.values.get('_time'),
+                                'value': record.values.get('_value', 0)
+                            })
+                    
+                    metrics['memory'] = memory_data
+            except Exception as e:
+                logger.error(f"Error getting memory metrics: {str(e)}")
+        
+        # Add more metric types as needed
+        
+        return metrics
     
     def get_device_interfaces(self, device_id):
         """
@@ -252,13 +211,13 @@ class InfluxClient:
         Returns:
             List of interfaces
         """
-        # Query to get interfaces
+        # Query to get the latest interface metrics
         query = f'''
         from(bucket: "{self.bucket}")
             |> range(start: -5m)
-            |> filter(fn: (r) => r._measurement == "interface_metrics")
-            |> filter(fn: (r) => r.device_id == "{device_id}")
-            |> group(columns: ["interface"])
+            |> filter(fn: (r) => r._measurement == "interface" and r.device_id == "{device_id}")
+            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+            |> group(columns: ["interface_name"])
             |> last()
         '''
         
@@ -267,30 +226,21 @@ class InfluxClient:
             if not result:
                 return []
             
-            # Process result
-            interfaces = {}
+            interfaces = []
             for table in result:
                 for record in table.records:
-                    interface = record.values.get('interface')
-                    if interface not in interfaces:
-                        interfaces[interface] = {
-                            'name': interface,
-                            'status': 'down',
-                            'rx_bytes': 0,
-                            'tx_bytes': 0
-                        }
-                    
-                    field = record.values.get('_field')
-                    value = record.values.get('_value')
-                    
-                    if field == 'status' and value == 1:
-                        interfaces[interface]['status'] = 'up'
-                    elif field == 'rx_bytes':
-                        interfaces[interface]['rx_bytes'] = value
-                    elif field == 'tx_bytes':
-                        interfaces[interface]['tx_bytes'] = value
+                    interfaces.append({
+                        'name': record.values.get('interface_name', 'unknown'),
+                        'type': record.values.get('type', 'unknown'),
+                        'status': record.values.get('status', 'down'),
+                        'rx_bytes': record.values.get('rx_bytes', 0),
+                        'tx_bytes': record.values.get('tx_bytes', 0),
+                        'rx_packets': record.values.get('rx_packets', 0),
+                        'tx_packets': record.values.get('tx_packets', 0),
+                        'errors': record.values.get('errors', 0)
+                    })
             
-            return list(interfaces.values())
+            return interfaces
         except Exception as e:
             logger.error(f"Error getting device interfaces: {str(e)}")
             return []
@@ -307,108 +257,55 @@ class InfluxClient:
         Returns:
             Dictionary with wireless metrics
         """
-        # Query to get wireless interfaces
-        interfaces_query = f'''
+        # Query to get the latest wireless interface metrics
+        query = f'''
         from(bucket: "{self.bucket}")
-            |> range(start: -5m)
-            |> filter(fn: (r) => r._measurement == "wireless_interface")
-            |> filter(fn: (r) => r.device_id == "{device_id}")
-            |> group(columns: ["interface"])
-            |> last()
-        '''
-        
-        # Query to get wireless clients
-        clients_query = f'''
-        from(bucket: "{self.bucket}")
-            |> range(start: -5m)
-            |> filter(fn: (r) => r._measurement == "wireless_client")
-            |> filter(fn: (r) => r.device_id == "{device_id}")
-            |> group(columns: ["mac_address"])
-            |> last()
+            |> range(start: {start_time}, stop: {end_time})
+            |> filter(fn: (r) => r._measurement == "wireless" and r.device_id == "{device_id}")
+            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+            |> group(columns: ["interface_name"])
         '''
         
         try:
-            # Get wireless interfaces
-            interfaces_result = self.query(interfaces_query)
-            interfaces = {}
+            result = self.query(query)
+            if not result:
+                return {'interfaces': [], 'clients': []}
             
-            if interfaces_result:
-                for table in interfaces_result:
-                    for record in table.records:
-                        interface = record.values.get('interface')
-                        if interface not in interfaces:
-                            interfaces[interface] = {
-                                'name': interface,
-                                'ssid': record.values.get('ssid', ''),
-                                'mac_address': record.values.get('mac_address', ''),
-                                'band': record.values.get('band', ''),
-                                'mode': record.values.get('mode', ''),
-                                'frequency': 0,
-                                'tx_power': 0,
-                                'status': 'down',
-                                'clients': []
-                            }
-                        
-                        field = record.values.get('_field')
-                        value = record.values.get('_value')
-                        
-                        if field == 'frequency':
-                            interfaces[interface]['frequency'] = value
-                        elif field == 'tx_power':
-                            interfaces[interface]['tx_power'] = value
-                        elif field == 'status' and value == 1:
-                            interfaces[interface]['status'] = 'up'
+            interfaces = []
+            clients = []
             
-            # Get wireless clients
-            clients_result = self.query(clients_query)
-            clients = {}
-            
-            if clients_result:
-                for table in clients_result:
-                    for record in table.records:
-                        mac_address = record.values.get('mac_address')
-                        interface = record.values.get('interface')
-                        
-                        if interface in interfaces and mac_address not in clients:
-                            client = {
-                                'mac_address': mac_address,
-                                'interface': interface,
-                                'signal_strength': 0,
-                                'signal_to_noise': 0,
-                                'tx_rate': 0,
-                                'rx_rate': 0,
-                                'uptime_seconds': 0
-                            }
-                            
-                            field = record.values.get('_field')
-                            value = record.values.get('_value')
-                            
-                            if field == 'signal_strength':
-                                client['signal_strength'] = value
-                            elif field == 'signal_to_noise':
-                                client['signal_to_noise'] = value
-                            elif field == 'tx_rate':
-                                client['tx_rate'] = value
-                            elif field == 'rx_rate':
-                                client['rx_rate'] = value
-                            elif field == 'uptime_seconds':
-                                client['uptime_seconds'] = value
-                            
-                            clients[mac_address] = client
-                            interfaces[interface]['clients'].append(client)
+            for table in result:
+                for record in table.records:
+                    # Check if this is an interface or client record
+                    record_type = record.values.get('type', '')
+                    
+                    if record_type == 'interface':
+                        interfaces.append({
+                            'name': record.values.get('interface_name', 'unknown'),
+                            'ssid': record.values.get('ssid', 'unknown'),
+                            'frequency': record.values.get('frequency', 0),
+                            'channel': record.values.get('channel', 0),
+                            'tx_power': record.values.get('tx_power', 0),
+                            'clients': record.values.get('client_count', 0),
+                            'time': record.values.get('_time')
+                        })
+                    elif record_type == 'client':
+                        clients.append({
+                            'mac': record.values.get('client_mac', 'unknown'),
+                            'interface': record.values.get('interface_name', 'unknown'),
+                            'signal': record.values.get('signal', 0),
+                            'tx_rate': record.values.get('tx_rate', 0),
+                            'rx_rate': record.values.get('rx_rate', 0),
+                            'time': record.values.get('_time')
+                        })
             
             return {
-                'device_id': device_id,
-                'interfaces': list(interfaces.values()),
-                'client_count': len(clients)
+                'interfaces': interfaces,
+                'clients': clients
             }
         except Exception as e:
             logger.error(f"Error getting wireless metrics: {str(e)}")
-            return {
-                'device_id': device_id,
-                'interfaces': [],
-                'client_count': 0
-            }
+            return {'interfaces': [], 'clients': []}
     
     def get_qos_metrics(self, device_id, start_time='-1h', end_time='now()'):
         """
@@ -422,61 +319,38 @@ class InfluxClient:
         Returns:
             Dictionary with QoS metrics
         """
-        # Query to get QoS queues
+        # Query to get QoS metrics
         query = f'''
         from(bucket: "{self.bucket}")
-            |> range(start: -5m)
-            |> filter(fn: (r) => r._measurement == "qos_queue")
-            |> filter(fn: (r) => r.device_id == "{device_id}")
+            |> range(start: {start_time}, stop: {end_time})
+            |> filter(fn: (r) => r._measurement == "qos" and r.device_id == "{device_id}")
+            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
             |> group(columns: ["queue_name"])
-            |> last()
         '''
         
         try:
             result = self.query(query)
             if not result:
-                return {'device_id': device_id, 'queues': []}
+                return {'queues': []}
             
-            # Process result
-            queues = {}
+            queues = []
+            
             for table in result:
                 for record in table.records:
-                    queue_name = record.values.get('queue_name')
-                    if queue_name not in queues:
-                        queues[queue_name] = {
-                            'name': queue_name,
-                            'target': record.values.get('target', ''),
-                            'parent': record.values.get('parent', ''),
-                            'priority': record.values.get('priority', 8),
-                            'max_limit': {'download': 0, 'upload': 0},
-                            'limit_at': {'download': 0, 'upload': 0},
-                            'disabled': False
-                        }
-                    
-                    field = record.values.get('_field')
-                    value = record.values.get('_value')
-                    
-                    if field == 'max_limit_download':
-                        queues[queue_name]['max_limit']['download'] = value
-                    elif field == 'max_limit_upload':
-                        queues[queue_name]['max_limit']['upload'] = value
-                    elif field == 'limit_at_download':
-                        queues[queue_name]['limit_at']['download'] = value
-                    elif field == 'limit_at_upload':
-                        queues[queue_name]['limit_at']['upload'] = value
-                    elif field == 'disabled' and value == 1:
-                        queues[queue_name]['disabled'] = True
+                    queues.append({
+                        'name': record.values.get('queue_name', 'unknown'),
+                        'target': record.values.get('target', 'unknown'),
+                        'limit_up': record.values.get('limit_up', 0),
+                        'limit_down': record.values.get('limit_down', 0),
+                        'current_up': record.values.get('current_up', 0),
+                        'current_down': record.values.get('current_down', 0),
+                        'time': record.values.get('_time')
+                    })
             
-            return {
-                'device_id': device_id,
-                'queues': list(queues.values())
-            }
+            return {'queues': queues}
         except Exception as e:
             logger.error(f"Error getting QoS metrics: {str(e)}")
-            return {
-                'device_id': device_id,
-                'queues': []
-            }
+            return {'queues': []}
     
     def get_alerts(self):
         """
@@ -485,12 +359,12 @@ class InfluxClient:
         Returns:
             List of active alerts
         """
-        # Query to get alerts
+        # Query to get active alerts
         query = f'''
         from(bucket: "{self.bucket}")
-            |> range(start: -1h)
-            |> filter(fn: (r) => r._measurement == "alerts")
-            |> filter(fn: (r) => r.active == true)
+            |> range(start: -24h)
+            |> filter(fn: (r) => r._measurement == "alert" and r.active == "true")
+            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
             |> group(columns: ["alert_id"])
             |> last()
         '''
@@ -500,19 +374,19 @@ class InfluxClient:
             if not result:
                 return []
             
-            # Process result
             alerts = []
+            
             for table in result:
                 for record in table.records:
                     alerts.append({
-                        'id': record.values.get('alert_id'),
-                        'type': record.values.get('type'),
-                        'device_id': record.values.get('device_id'),
-                        'device_name': record.values.get('device_name'),
-                        'message': record.values.get('message'),
-                        'value': record.values.get('value'),
-                        'threshold': record.values.get('threshold'),
-                        'timestamp': record.values.get('_time').strftime('%Y-%m-%dT%H:%M:%SZ')
+                        'id': record.values.get('alert_id', 'unknown'),
+                        'type': record.values.get('type', 'unknown'),
+                        'device_id': record.values.get('device_id', 'unknown'),
+                        'message': record.values.get('message', ''),
+                        'value': record.values.get('value', 0),
+                        'threshold': record.values.get('threshold', 0),
+                        'resource': record.values.get('resource', ''),
+                        'time': record.values.get('_time')
                     })
             
             return alerts
