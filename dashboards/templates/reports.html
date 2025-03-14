@@ -1,0 +1,477 @@
+{% extends "layout.html" %}
+
+{% block title %}Reports - Network Monitoring System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>Reports</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-primary" id="refreshReports">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newReportModal">
+                <i class="bi bi-plus-circle"></i> New Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="reportTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="saved-tab" data-bs-toggle="tab" href="#savedReports">Saved Reports</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="scheduled-tab" data-bs-toggle="tab" href="#scheduledReports">Scheduled Reports</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="generator-tab" data-bs-toggle="tab" href="#reportGenerator">Report Generator</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <!-- Saved Reports Tab -->
+                    <div class="tab-pane fade show active" id="savedReports">
+                        {% if saved_reports %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Report Name</th>
+                                        <th>Type</th>
+                                        <th>Created</th>
+                                        <th>Last Run</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for report in saved_reports %}
+                                    <tr>
+                                        <td>{{ report.name }}</td>
+                                        <td>{{ report.type }}</td>
+                                        <td>{{ report.created }}</td>
+                                        <td>{{ report.last_run }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('view_report', report_id=report.id) }}" class="btn btn-outline-primary">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-secondary download-report" data-report-id="{{ report.id }}">
+                                                    <i class="bi bi-download"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-danger delete-report" data-report-id="{{ report.id }}" data-report-name="{{ report.name }}">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> No saved reports found.
+                        </div>
+                        <p>You can create a new report by clicking the "New Report" button above or using the Report Generator tab.</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Scheduled Reports Tab -->
+                    <div class="tab-pane fade" id="scheduledReports">
+                        {% if scheduled_reports %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Report Name</th>
+                                        <th>Type</th>
+                                        <th>Schedule</th>
+                                        <th>Recipients</th>
+                                        <th>Next Run</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for report in scheduled_reports %}
+                                    <tr>
+                                        <td>{{ report.name }}</td>
+                                        <td>{{ report.type }}</td>
+                                        <td>{{ report.schedule }}</td>
+                                        <td>{{ report.recipients }}</td>
+                                        <td>{{ report.next_run }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary edit-schedule" data-report-id="{{ report.id }}">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-success run-now" data-report-id="{{ report.id }}">
+                                                    <i class="bi bi-play"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-danger delete-schedule" data-report-id="{{ report.id }}" data-report-name="{{ report.name }}">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> No scheduled reports found.
+                        </div>
+                        <p>You can schedule a report for regular generation and delivery by clicking the "New Report" button above and selecting the "Schedule" option.</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Report Generator Tab -->
+                    <div class="tab-pane fade" id="reportGenerator">
+                        <form id="reportGeneratorForm" action="{{ url_for('generate_report') }}" method="post">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="reportName" class="form-label">Report Name</label>
+                                    <input type="text" class="form-control" id="reportName" name="report_name" placeholder="Enter a name for this report" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="reportType" class="form-label">Report Type</label>
+                                    <select class="form-select" id="reportType" name="report_type" required>
+                                        <option value="">Select Report Type</option>
+                                        <option value="system_performance">System Performance</option>
+                                        <option value="network_traffic">Network Traffic</option>
+                                        <option value="device_inventory">Device Inventory</option>
+                                        <option value="alerts_summary">Alerts Summary</option>
+                                        <option value="wireless_performance">Wireless Performance</option>
+                                        <option value="qos_analysis">QoS Analysis</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="timeRange" class="form-label">Time Range</label>
+                                    <select class="form-select" id="timeRange" name="time_range" required>
+                                        <option value="last_24h">Last 24 Hours</option>
+                                        <option value="last_7d">Last 7 Days</option>
+                                        <option value="last_30d">Last 30 Days</option>
+                                        <option value="last_90d">Last 90 Days</option>
+                                        <option value="custom">Custom Range</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="devices" class="form-label">Devices</label>
+                                    <select class="form-select" id="devices" name="devices" multiple>
+                                        <option value="all" selected>All Devices</option>
+                                        {% for device in devices %}
+                                        <option value="{{ device.id }}">{{ device.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">
+                                        Hold Ctrl/Cmd to select multiple devices
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="customDateRange" class="row mb-3" style="display: none;">
+                                <div class="col-md-6">
+                                    <label for="startDate" class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" id="startDate" name="start_date">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="endDate" class="form-label">End Date</label>
+                                    <input type="date" class="form-control" id="endDate" name="end_date">
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="reportFormat" class="form-label">Report Format</label>
+                                    <select class="form-select" id="reportFormat" name="report_format" required>
+                                        <option value="pdf">PDF</option>
+                                        <option value="csv">CSV</option>
+                                        <option value="excel">Excel</option>
+                                        <option value="html">HTML</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="includeCharts" class="form-label">Include Visual Elements</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeCharts" name="include_charts" checked>
+                                        <label class="form-check-label" for="includeCharts">
+                                            Include charts and graphs
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeTables" name="include_tables" checked>
+                                        <label class="form-check-label" for="includeTables">
+                                            Include data tables
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="saveReport" name="save_report" checked>
+                                <label class="form-check-label" for="saveReport">
+                                    Save this report for future reference
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="scheduleReport" name="schedule_report">
+                                <label class="form-check-label" for="scheduleReport">
+                                    Schedule this report
+                                </label>
+                            </div>
+                            
+                            <div id="scheduleOptions" class="row mb-3" style="display: none;">
+                                <div class="col-md-6">
+                                    <label for="scheduleFrequency" class="form-label">Frequency</label>
+                                    <select class="form-select" id="scheduleFrequency" name="schedule_frequency">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="scheduleTime" class="form-label">Time</label>
+                                    <input type="time" class="form-control" id="scheduleTime" name="schedule_time" value="00:00">
+                                </div>
+                                <div class="col-md-12 mt-3">
+                                    <label for="emailRecipients" class="form-label">Email Recipients</label>
+                                    <input type="text" class="form-control" id="emailRecipients" name="email_recipients" placeholder="Enter email addresses separated by commas">
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="reset" class="btn btn-secondary">Reset</button>
+                                <button type="submit" class="btn btn-primary">Generate Report</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Report Modal -->
+<div class="modal fade" id="newReportModal" tabindex="-1" aria-labelledby="newReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newReportModalLabel">Create New Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="quickReportType" class="form-label">Report Type</label>
+                    <select class="form-select" id="quickReportType">
+                        <option value="">Select a report type...</option>
+                        <option value="system_performance">System Performance Report</option>
+                        <option value="network_traffic">Network Traffic Report</option>
+                        <option value="device_inventory">Device Inventory Report</option>
+                        <option value="alerts_summary">Alerts Summary Report</option>
+                        <option value="wireless_performance">Wireless Performance Report</option>
+                        <option value="qos_analysis">QoS Analysis Report</option>
+                        <option value="custom">Custom Report (Use Report Generator)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="quickTimeRange" class="form-label">Time Range</label>
+                    <select class="form-select" id="quickTimeRange">
+                        <option value="last_24h">Last 24 Hours</option>
+                        <option value="last_7d">Last 7 Days</option>
+                        <option value="last_30d">Last 30 Days</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="quickScheduleReport">
+                    <label class="form-check-label" for="quickScheduleReport">
+                        Schedule this report
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createQuickReport">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Report Confirmation Modal -->
+<div class="modal fade" id="deleteReportModal" tabindex="-1" aria-labelledby="deleteReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteReportModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the report <strong id="reportNameToDelete"></strong>?</p>
+                <p>This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <form id="deleteReportForm" action="{{ url_for('delete_report') }}" method="post">
+                    <input type="hidden" id="reportIdToDelete" name="report_id">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Delete Report</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Time range selection
+        const timeRange = document.getElementById('timeRange');
+        const customDateRange = document.getElementById('customDateRange');
+        
+        if (timeRange) {
+            timeRange.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    customDateRange.style.display = 'flex';
+                } else {
+                    customDateRange.style.display = 'none';
+                }
+            });
+        }
+        
+        // Schedule report checkbox
+        const scheduleReport = document.getElementById('scheduleReport');
+        const scheduleOptions = document.getElementById('scheduleOptions');
+        
+        if (scheduleReport) {
+            scheduleReport.addEventListener('change', function() {
+                if (this.checked) {
+                    scheduleOptions.style.display = 'flex';
+                } else {
+                    scheduleOptions.style.display = 'none';
+                }
+            });
+        }
+        
+        // Delete report confirmation
+        const deleteReportButtons = document.querySelectorAll('.delete-report');
+        deleteReportButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const reportId = this.getAttribute('data-report-id');
+                const reportName = this.getAttribute('data-report-name');
+                
+                document.getElementById('reportIdToDelete').value = reportId;
+                document.getElementById('reportNameToDelete').textContent = reportName;
+                
+                const deleteModal = new bootstrap.Modal(document.getElementById('deleteReportModal'));
+                deleteModal.show();
+            });
+        });
+        
+        // Quick report creation
+        const createQuickReportBtn = document.getElementById('createQuickReport');
+        if (createQuickReportBtn) {
+            createQuickReportBtn.addEventListener('click', function() {
+                const reportType = document.getElementById('quickReportType').value;
+                const timeRange = document.getElementById('quickTimeRange').value;
+                const scheduleReport = document.getElementById('quickScheduleReport').checked;
+                
+                if (!reportType) {
+                    alert('Please select a report type');
+                    return;
+                }
+                
+                if (reportType === 'custom') {
+                    // Switch to report generator tab
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('newReportModal'));
+                    modal.hide();
+                    
+                    const generatorTab = document.getElementById('generator-tab');
+                    generatorTab.click();
+                } else {
+                    // Create the report
+                    fetch('/api/create-report', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            report_type: reportType,
+                            time_range: timeRange,
+                            schedule: scheduleReport
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (data.redirect) {
+                                window.location.href = data.redirect;
+                            } else {
+                                window.location.reload();
+                            }
+                        } else {
+                            alert('Error creating report: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while creating report');
+                    });
+                }
+            });
+        }
+        
+        // Download report
+        const downloadReportButtons = document.querySelectorAll('.download-report');
+        downloadReportButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const reportId = this.getAttribute('data-report-id');
+                window.location.href = `/reports/${reportId}/download`;
+            });
+        });
+        
+        // Run report now
+        const runNowButtons = document.querySelectorAll('.run-now');
+        runNowButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const reportId = this.getAttribute('data-report-id');
+                
+                fetch(`/api/reports/${reportId}/run-now`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Report generation started. You will receive an email when it is complete.');
+                    } else {
+                        alert('Error running report: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while running report');
+                });
+            });
+        });
+        
+        // Refresh reports
+        const refreshReportsBtn = document.getElementById('refreshReports');
+        if (refreshReportsBtn) {
+            refreshReportsBtn.addEventListener('click', function() {
+                window.location.reload();
+            });
+        }
+    });
+</script>
+{% endblock %}

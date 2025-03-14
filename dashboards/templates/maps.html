@@ -1,0 +1,831 @@
+{% extends "layout.html" %}
+
+{% block title %}Network Maps - Network Monitoring System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>Network Maps</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-primary" id="refreshMap">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear"></i> Options
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" id="saveMapLayout"><i class="bi bi-save"></i> Save Layout</a></li>
+                    <li><a class="dropdown-item" href="#" id="resetMapLayout"><i class="bi bi-arrow-counterclockwise"></i> Reset Layout</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" id="exportMap"><i class="bi bi-download"></i> Export as Image</a></li>
+                </ul>
+            </div>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editMapModal">
+                <i class="bi bi-pencil"></i> Edit Map
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Map Controls</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="mapSelect" class="form-label">Select Map</label>
+                    <select class="form-select" id="mapSelect">
+                        <option value="physical">Physical Network</option>
+                        <option value="logical">Logical Network</option>
+                        <option value="wireless">Wireless Network</option>
+                        <option value="custom1">Custom Map 1</option>
+                        <option value="custom2">Custom Map 2</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="mapLayout" class="form-label">Layout</label>
+                    <select class="form-select" id="mapLayout">
+                        <option value="automatic">Automatic</option>
+                        <option value="hierarchical">Hierarchical</option>
+                        <option value="radial">Radial</option>
+                        <option value="grid">Grid</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Display Options</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showLabels" checked>
+                        <label class="form-check-label" for="showLabels">
+                            Show Labels
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showStatus" checked>
+                        <label class="form-check-label" for="showStatus">
+                            Show Status
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showTraffic" checked>
+                        <label class="form-check-label" for="showTraffic">
+                            Show Traffic
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Filters</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filterRouters" checked>
+                        <label class="form-check-label" for="filterRouters">
+                            Routers
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filterSwitches" checked>
+                        <label class="form-check-label" for="filterSwitches">
+                            Switches
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filterWireless" checked>
+                        <label class="form-check-label" for="filterWireless">
+                            Wireless
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filterServers" checked>
+                        <label class="form-check-label" for="filterServers">
+                            Servers
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="filterEndpoints">
+                        <label class="form-check-label" for="filterEndpoints">
+                            Endpoints
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="zoomLevel" class="form-label">Zoom: <span id="zoomValue">100%</span></label>
+                    <input type="range" class="form-range" id="zoomLevel" min="50" max="200" step="10" value="100">
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="centerMap">
+                        <i class="bi bi-fullscreen"></i> Center Map
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Legend</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <i class="bi bi-router text-danger"></i>
+                    </div>
+                    <div>Router</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <i class="bi bi-hdd-network text-primary"></i>
+                    </div>
+                    <div>Switch</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <i class="bi bi-wifi text-purple"></i>
+                    </div>
+                    <div>Wireless AP</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <i class="bi bi-server text-success"></i>
+                    </div>
+                    <div>Server</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <i class="bi bi-laptop text-secondary"></i>
+                    </div>
+                    <div>Endpoint</div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <span class="status-indicator status-online"></span>
+                    </div>
+                    <div>Online</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <span class="status-indicator status-warning"></span>
+                    </div>
+                    <div>Warning</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <span class="status-indicator status-critical"></span>
+                    </div>
+                    <div>Critical</div>
+                </div>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="me-2">
+                        <span class="status-indicator status-offline"></span>
+                    </div>
+                    <div>Offline</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0" id="currentMapName">Physical Network</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="networkMap" class="network-map">
+                    <!-- Network map will be rendered here by JavaScript -->
+                    <div id="mapLoading" class="d-flex justify-content-center align-items-center h-100">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Device Status</h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="expandDeviceStatus">
+                    <i class="bi bi-arrows-expand"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="deviceStatusTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Last Seen</th>
+                                <th>Traffic</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in devices %}
+                            <tr>
+                                <td>{{ device.name }}</td>
+                                <td>{{ device.type }}</td>
+                                <td>{{ device.address }}</td>
+                                <td>
+                                    {% if device.status == 'online' %}
+                                    <span class="badge bg-success">Online</span>
+                                    {% elif device.status == 'warning' %}
+                                    <span class="badge bg-warning text-dark">Warning</span>
+                                    {% elif device.status == 'critical' %}
+                                    <span class="badge bg-danger">Critical</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Offline</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ device.last_seen }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-arrow-down-short text-success me-1"></i> {{ device.rx_rate }}
+                                        <i class="bi bi-arrow-up-short text-danger ms-2 me-1"></i> {{ device.tx_rate }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('device_detail', device_id=device.id) }}" class="btn btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-secondary locate-device" data-device-id="{{ device.id }}">
+                                            <i class="bi bi-geo"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Map Modal -->
+<div class="modal fade" id="editMapModal" tabindex="-1" aria-labelledby="editMapModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editMapModalLabel">Edit Network Map</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="editMapName" class="form-label">Map Name</label>
+                        <input type="text" class="form-control" id="editMapName" value="Physical Network">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="editMapType" class="form-label">Map Type</label>
+                        <select class="form-select" id="editMapType">
+                            <option value="physical">Physical Network</option>
+                            <option value="logical">Logical Network</option>
+                            <option value="wireless">Wireless Network</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Map Elements</label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="mapElementsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Device Name</th>
+                                        <th>Type</th>
+                                        <th>Show on Map</th>
+                                        <th>X Position</th>
+                                        <th>Y Position</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for device in devices %}
+                                    <tr>
+                                        <td>{{ device.name }}</td>
+                                        <td>{{ device.type }}</td>
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="showDevice{{ device.id }}" checked>
+                                                <label class="form-check-label" for="showDevice{{ device.id }}"></label>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" id="deviceX{{ device.id }}" value="{{ device.map_x }}">
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" id="deviceY{{ device.id }}" value="{{ device.map_y }}">
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label class="form-label">Connections</label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="mapConnectionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Source</th>
+                                        <th>Destination</th>
+                                        <th>Type</th>
+                                        <th>Show on Map</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for connection in connections %}
+                                    <tr>
+                                        <td>{{ connection.source_name }}</td>
+                                        <td>{{ connection.target_name }}</td>
+                                        <td>{{ connection.type }}</td>
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="showConnection{{ connection.id }}" checked>
+                                                <label class="form-check-label" for="showConnection{{ connection.id }}"></label>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label for="backgroundColor" class="form-label">Background Color</label>
+                        <input type="color" class="form-control form-control-color" id="backgroundColor" value="#f8f9fa">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveMapEdits">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Details Modal -->
+<div class="modal fade" id="deviceDetailsModal" tabindex="-1" aria-labelledby="deviceDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deviceDetailsModalLabel">Device Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="deviceDetailsLoading" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading device details...</p>
+                </div>
+                
+                <div id="deviceDetailsContent" style="display: none;">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6>Device Information</h6>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Name</th>
+                                        <td id="detailDeviceName"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Type</th>
+                                        <td id="detailDeviceType"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>IP Address</th>
+                                        <td id="detailDeviceIP"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Status</th>
+                                        <td id="detailDeviceStatus"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Uptime</th>
+                                        <td id="detailDeviceUptime"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Current Metrics</h6>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>CPU</th>
+                                        <td id="detailDeviceCpu"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Memory</th>
+                                        <td id="detailDeviceMemory"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Download</th>
+                                        <td id="detailDeviceRx"></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Upload</th>
+                                        <td id="detailDeviceTx"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Connected Interfaces</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="detailInterfacesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Traffic</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Interfaces will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Active Alerts</h6>
+                        <div id="detailAlertsContainer">
+                            <!-- Alerts will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="detailViewDeviceBtn" class="btn btn-primary">View Details</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Network map data
+        const mapData = {
+            physical: {
+                nodes: {{ physical_map_nodes|safe }},
+                edges: {{ physical_map_edges|safe }}
+            },
+            logical: {
+                nodes: {{ logical_map_nodes|safe }},
+                edges: {{ logical_map_edges|safe }}
+            },
+            wireless: {
+                nodes: {{ wireless_map_nodes|safe }},
+                edges: {{ wireless_map_edges|safe }}
+            },
+            custom1: {
+                nodes: {{ custom1_map_nodes|safe }},
+                edges: {{ custom1_map_edges|safe }}
+            },
+            custom2: {
+                nodes: {{ custom2_map_nodes|safe }},
+                edges: {{ custom2_map_edges|safe }}
+            }
+        };
+        
+        // Initialize map
+        let currentMap = 'physical';
+        let zoomLevel = 100;
+        
+        // Load initial map
+        loadMap(currentMap);
+        
+        // Map select change
+        const mapSelect = document.getElementById('mapSelect');
+        if (mapSelect) {
+            mapSelect.addEventListener('change', function() {
+                currentMap = this.value;
+                document.getElementById('currentMapName').textContent = this.options[this.selectedIndex].text;
+                loadMap(currentMap);
+            });
+        }
+        
+        // Zoom control
+        const zoomLevel = document.getElementById('zoomLevel');
+        const zoomValue = document.getElementById('zoomValue');
+        if (zoomLevel && zoomValue) {
+            zoomLevel.addEventListener('input', function() {
+                const zoom = this.value;
+                zoomValue.textContent = zoom + '%';
+                
+                // Apply zoom to map
+                const networkMap = document.getElementById('networkMap');
+                if (networkMap) {
+                    networkMap.style.transform = `scale(${zoom / 100})`;
+                }
+            });
+        }
+        
+        // Center map button
+        const centerMapBtn = document.getElementById('centerMap');
+        if (centerMapBtn) {
+            centerMapBtn.addEventListener('click', function() {
+                // Reset zoom
+                if (zoomLevel) zoomLevel.value = 100;
+                if (zoomValue) zoomValue.textContent = '100%';
+                
+                // Center map
+                const networkMap = document.getElementById('networkMap');
+                if (networkMap) {
+                    networkMap.style.transform = 'scale(1)';
+                }
+            });
+        }
+        
+        // Display options
+        const showLabels = document.getElementById('showLabels');
+        if (showLabels) {
+            showLabels.addEventListener('change', function() {
+                const nodes = document.querySelectorAll('.node span');
+                nodes.forEach(node => {
+                    node.style.display = this.checked ? 'block' : 'none';
+                });
+            });
+        }
+        
+        const showStatus = document.getElementById('showStatus');
+        if (showStatus) {
+            showStatus.addEventListener('change', function() {
+                const nodes = document.querySelectorAll('.node');
+                nodes.forEach(node => {
+                    if (this.checked) {
+                        // Re-add status classes
+                        const nodeId = node.getAttribute('data-node-id');
+                        const nodeData = findNodeById(nodeId);
+                        if (nodeData && nodeData.status) {
+                            node.classList.add('status-' + nodeData.status);
+                        }
+                    } else {
+                        // Remove all status classes
+                        node.classList.remove('status-online', 'status-warning', 'status-critical', 'status-offline');
+                    }
+                });
+            });
+        }
+        
+        const showTraffic = document.getElementById('showTraffic');
+        if (showTraffic) {
+            showTraffic.addEventListener('change', function() {
+                const edges = document.querySelectorAll('.edge');
+                edges.forEach(edge => {
+                    if (this.checked) {
+                        // Re-add active class for high traffic edges
+                        const edgeId = edge.getAttribute('data-edge-id');
+                        const edgeData = findEdgeById(edgeId);
+                        if (edgeData && edgeData.active) {
+                            edge.classList.add('active');
+                        }
+                    } else {
+                        // Remove active class
+                        edge.classList.remove('active');
+                    }
+                });
+            });
+        }
+        
+        // Filter controls
+        const filterControls = [
+            { id: 'filterRouters', type: 'router' },
+            { id: 'filterSwitches', type: 'switch' },
+            { id: 'filterWireless', type: 'wireless' },
+            { id: 'filterServers', type: 'server' },
+            { id: 'filterEndpoints', type: 'endpoint' }
+        ];
+        
+        filterControls.forEach(filter => {
+            const control = document.getElementById(filter.id);
+            if (control) {
+                control.addEventListener('change', function() {
+                    const nodes = document.querySelectorAll(`.node.${filter.type}`);
+                    nodes.forEach(node => {
+                        node.style.display = this.checked ? 'flex' : 'none';
+                    });
+                    
+                    // Update edges
+                    updateEdgeVisibility();
+                });
+            }
+        });
+        
+        // Locate device
+        const locateButtons = document.querySelectorAll('.locate-device');
+        locateButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const deviceId = this.getAttribute('data-device-id');
+                
+                // Find the node in the map
+                const node = document.querySelector(`.node[data-node-id="${deviceId}"]`);
+                if (node) {
+                    // Highlight the node
+                    highlightNode(node);
+                    
+                    // Scroll to the node
+                    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        });
+        
+        // Load map function
+        function loadMap(mapType) {
+            const mapContainer = document.getElementById('networkMap');
+            const loadingIndicator = document.getElementById('mapLoading');
+            
+            if (!mapContainer || !mapData[mapType]) return;
+            
+            // Show loading indicator
+            if (loadingIndicator) loadingIndicator.style.display = 'flex';
+            
+            // Clear previous map
+            mapContainer.innerHTML = '';
+            
+            // Create new map
+            const mapData = mapData[mapType];
+            
+            // Hide loading indicator
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            
+            // Create network map visualization
+            createNetworkMap('networkMap', mapData.nodes, mapData.edges);
+            
+            // Update layout if needed
+            const layoutSelect = document.getElementById('mapLayout');
+            if (layoutSelect) {
+                applyLayout(layoutSelect.value);
+            }
+        }
+        
+        // Find node by ID
+        function findNodeById(nodeId) {
+            if (!mapData[currentMap]) return null;
+            
+            return mapData[currentMap].nodes.find(node => node.id === nodeId);
+        }
+        
+        // Find edge by ID
+        function findEdgeById(edgeId) {
+            if (!mapData[currentMap]) return null;
+            
+            return mapData[currentMap].edges.find(edge => edge.id === edgeId);
+        }
+        
+        // Update edge visibility based on connected nodes
+        function updateEdgeVisibility() {
+            const edges = document.querySelectorAll('.edge');
+            edges.forEach(edge => {
+                const sourceId = edge.getAttribute('data-source');
+                const targetId = edge.getAttribute('data-target');
+                
+                const sourceNode = document.querySelector(`.node[data-node-id="${sourceId}"]`);
+                const targetNode = document.querySelector(`.node[data-node-id="${targetId}"]`);
+                
+                // If either node is hidden, hide the edge
+                if (sourceNode.style.display === 'none' || targetNode.style.display === 'none') {
+                    edge.style.display = 'none';
+                } else {
+                    edge.style.display = 'block';
+                }
+            });
+        }
+        
+        // Highlight a node
+        function highlightNode(node) {
+            // Remove highlight from all nodes
+            document.querySelectorAll('.node').forEach(n => {
+                n.classList.remove('highlighted');
+            });
+            
+            // Add highlight to the selected node
+            node.classList.add('highlighted');
+            
+            // After 3 seconds, remove the highlight
+            setTimeout(() => {
+                node.classList.remove('highlighted');
+            }, 3000);
+        }
+        
+        // Apply layout
+        function applyLayout(layoutType) {
+            // Implementation would depend on the specific layout algorithms used
+            // This is a placeholder for the actual implementation
+        }
+        
+        // Map layout selector
+        const layoutSelect = document.getElementById('mapLayout');
+        if (layoutSelect) {
+            layoutSelect.addEventListener('change', function() {
+                applyLayout(this.value);
+            });
+        }
+        
+        // Save map layout
+        const saveLayoutBtn = document.getElementById('saveMapLayout');
+        if (saveLayoutBtn) {
+            saveLayoutBtn.addEventListener('click', function() {
+                // Get current node positions
+                const nodes = document.querySelectorAll('.node');
+                const nodePositions = Array.from(nodes).map(node => {
+                    return {
+                        id: node.getAttribute('data-node-id'),
+                        x: parseInt(node.style.left),
+                        y: parseInt(node.style.top)
+                    };
+                });
+                
+                // Save positions to server
+                fetch('/api/maps/save-layout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        map_type: currentMap,
+                        positions: nodePositions
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Map layout saved successfully');
+                    } else {
+                        alert('Error saving map layout: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while saving map layout');
+                });
+            });
+        }
+        
+        // Reset map layout
+        const resetLayoutBtn = document.getElementById('resetMapLayout');
+        if (resetLayoutBtn) {
+            resetLayoutBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to reset the map layout?')) {
+                    // Reload the map
+                    loadMap(currentMap);
+                }
+            });
+        }
+        
+        // Export map as image
+        const exportMapBtn = document.getElementById('exportMap');
+        if (exportMapBtn) {
+            exportMapBtn.addEventListener('click', function() {
+                // Export the map as an image
+                // This would require a canvas-based implementation or a server-side rendering
+                alert('Export functionality not implemented in this demo');
+            });
+        }
+        
+        // Refresh map
+        const refreshMapBtn = document.getElementById('refreshMap');
+        if (refreshMapBtn) {
+            refreshMapBtn.addEventListener('click', function() {
+                loadMap(currentMap);
+            });
+        }
+    });
+</script>
+{% endblock %}
