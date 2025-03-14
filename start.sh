@@ -23,7 +23,7 @@ sleep 5
 
 # Initialize InfluxDB if needed (suppress errors)
 echo "Initializing InfluxDB (if needed)..."
-influx setup --username admin --password ChangeThisPassword --org my-org --bucket my-bucket --retention 0 --force 2>/dev/null || true
+influx setup --username admin --password admin --org my-org --bucket my-bucket --retention 0 --force 2>/dev/null || true
 # Update the token for consistent authentication
 influx auth create --user admin --org my-org --all-access || true
 echo "InfluxDB initialization complete."
