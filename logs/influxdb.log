@@ -1,0 +1,19 @@
+ts=2025-03-14T02:35:20.089969Z lvl=info msg="Welcome to InfluxDB" log_id=0vGcwraG000 version=2.7.1 commit=v2.7.1 build_date=2025-03-14T02:35:19Z log_level=info
+ts=2025-03-14T02:35:20.107881Z lvl=info msg="Resources opened" log_id=0vGcwraG000 service=bolt path=./data/influxdb/influxd.bolt
+ts=2025-03-14T02:35:20.108246Z lvl=info msg="Resources opened" log_id=0vGcwraG000 service=sqlite path=data/influxdb/influxd.sqlite
+ts=2025-03-14T02:35:20.143018Z lvl=info msg="Checking InfluxDB metadata for prior version." log_id=0vGcwraG000 bolt_path=./data/influxdb/influxd.bolt
+ts=2025-03-14T02:35:20.144010Z lvl=info msg="Using data dir" log_id=0vGcwraG000 service=storage-engine service=store path=data/influxdb/engine/data
+ts=2025-03-14T02:35:20.144571Z lvl=info msg="Compaction settings" log_id=0vGcwraG000 service=storage-engine service=store max_concurrent_compactions=3 throughput_bytes_per_second=50331648 throughput_bytes_per_second_burst=50331648
+ts=2025-03-14T02:35:20.145106Z lvl=info msg="Open store (start)" log_id=0vGcwraG000 service=storage-engine service=store op_name=tsdb_open op_event=start
+ts=2025-03-14T02:35:20.159644Z lvl=info msg="index opened with 8 partitions" log_id=0vGcwraG000 service=storage-engine index=tsi
+ts=2025-03-14T02:35:20.161460Z lvl=info msg="loading changes (start)" log_id=0vGcwraG000 service=storage-engine engine=tsm1 op_name="field indices" op_event=start
+ts=2025-03-14T02:35:20.176628Z lvl=info msg="loading changes (end)" log_id=0vGcwraG000 service=storage-engine engine=tsm1 op_name="field indices" op_event=end op_elapsed=15.168ms
+ts=2025-03-14T02:35:20.177003Z lvl=info msg="Reading file" log_id=0vGcwraG000 service=storage-engine engine=tsm1 service=cacheloader path=data/influxdb/engine/wal/b90d9fe8af397498/autogen/1/_00001.wal size=113880
+ts=2025-03-14T02:35:20.195677Z lvl=info msg="Opened shard" log_id=0vGcwraG000 service=storage-engine service=store op_name=tsdb_open index_version=tsi1 path=data/influxdb/engine/data/b90d9fe8af397498/autogen/1 duration=47.892ms
+ts=2025-03-14T02:35:20.195903Z lvl=info msg="Open store (end)" log_id=0vGcwraG000 service=storage-engine service=store op_name=tsdb_open op_event=end op_elapsed=50.797ms
+ts=2025-03-14T02:35:20.196014Z lvl=info msg="Starting retention policy enforcement service" log_id=0vGcwraG000 service=retention check_interval=30m
+ts=2025-03-14T02:35:20.196110Z lvl=info msg="Starting precreation service" log_id=0vGcwraG000 service=shard-precreation check_interval=10m advance_period=30m
+ts=2025-03-14T02:35:20.196916Z lvl=info msg="Starting query controller" log_id=0vGcwraG000 service=storage-reads concurrency_quota=1024 initial_memory_bytes_quota_per_query=9223372036854775807 memory_bytes_quota_per_query=9223372036854775807 max_memory_bytes=0 queue_size=1024
+ts=2025-03-14T02:35:20.201148Z lvl=info msg="Configuring InfluxQL statement executor (zeros indicate unlimited)." log_id=0vGcwraG000 max_select_point=0 max_select_series=0 max_select_buckets=0
+ts=2025-03-14T02:35:20.246391Z lvl=info msg=Listening log_id=0vGcwraG000 service=tcp-listener transport=http addr=:8086 port=8086
+ts=2025-03-14T02:35:56.067029Z lvl=error msg="api error encountered" log_id=0vGcwraG000 handler=session error="unauthorized access"
