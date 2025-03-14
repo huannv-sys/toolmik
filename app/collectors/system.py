@@ -28,9 +28,9 @@ class Collector(BaseCollector):
         # Create InfluxDB client
         influx_config = self.config.get('influxdb', {})
         self.influx = InfluxClient(
-            host=influx_config.get('host', 'influxdb'),
+            host=influx_config.get('host', 'localhost'),
             port=influx_config.get('port', 8086),
-            token=influx_config.get('token', 'ChangeThisPassword'),
+            token=influx_config.get('token', 'YM_NhDux0lCLYdPjyypSDQzAtATgFUh3x38CPDB34CzW51AXE1H2Zj9Gvqh7OhzWm9tF6jFKBcdNS4jn72FgFw=='),
             org=influx_config.get('org', 'my-org'),
             bucket=influx_config.get('bucket', 'my-bucket')
         )

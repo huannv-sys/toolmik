@@ -12,7 +12,7 @@ logger = logging.getLogger('utils.influx')
 class InfluxClient:
     """Client for interacting with InfluxDB"""
     
-    def __init__(self, host='localhost', port=8086, token='ChangeThisPassword', org='my-org', bucket='my-bucket'):
+    def __init__(self, host='localhost', port=8086, token='YM_NhDux0lCLYdPjyypSDQzAtATgFUh3x38CPDB34CzW51AXE1H2Zj9Gvqh7OhzWm9tF6jFKBcdNS4jn72FgFw==', org='my-org', bucket='my-bucket'):
         """Initialize the InfluxDB client"""
         self.host = host
         self.port = port
